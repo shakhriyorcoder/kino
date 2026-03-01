@@ -6,7 +6,7 @@ from datetime import datetime
 
 # ============= SOZLAMALAR =============
 TOKEN = "8452726962:AAFZaydQ_clGKHJ7AkaTyzQhEb_p8uqeAMU"
-MAIN_ADMIN_ID = 7176707054  # Asosiy admin (o'chirib bo'lmaydi)
+MAIN_ADMIN_ID = 8201674543  # Asosiy admin (o'chirib bo'lmaydi)
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -260,7 +260,7 @@ def main_keyboard(user_id):
     """Asosiy menyu"""
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("🎬 Kino")
-    markup.row("🔍 Qidiruv", "ℹ️ Ma'lumot")
+    # adminlar uchun alohida tugma
     if is_admin(user_id):
         markup.row("👑 Admin Panel")
     return markup
@@ -358,6 +358,13 @@ def handle_join_request(q):
     except Exception:
         pass
 
+# handle "back" button as a command anywhere outside of step handlers
+@bot.message_handler(func=lambda m: m.text == "🔙 Orqaga")
+@check_sub_decorator
+def handle_back_button(msg):
+    # always return to main start menu
+    start(msg)
+
 # ============= START =============
 @bot.message_handler(commands=['start'])
 @check_sub_decorator
@@ -379,7 +386,7 @@ def start(msg):
     welcome = (
         f"👋 Salom, {first_name}!\n\n"
         f"🎬 Moviequi Bot ga xush kelibsiz!\n\n"
-        f"📽 Minglab kino va seriallar sizni kutmoqda!\n"
+        f"📽 Minglab kinolar sizni kutmoqda!\n"
         f"🔍 Qidiruv orqali kerakli kontentni toping.\n\n"
     )
     
