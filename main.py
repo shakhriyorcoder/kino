@@ -6,7 +6,7 @@ from datetime import datetime
 
 # ============= SOZLAMALAR =============
 TOKEN = "8452726962:AAFZaydQ_clGKHJ7AkaTyzQhEb_p8uqeAMU"
-MAIN_ADMIN_ID = 8201674543  # Asosiy admin (o'chirib bo'lmaydi)
+MAIN_ADMIN_ID = 7176707054  # Asosiy admin (o'chirib bo'lmaydi)
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -902,38 +902,36 @@ def add_movie_title(msg, code):
     
     bot.send_message(msg.chat.id, template, parse_mode="Markdown", reply_markup=markup)
     bot.register_next_step_handler(msg, lambda m: add_movie_description(m, code, title))
-
 def add_movie_description(msg, code, title):
     if msg.text == "🔙 Orqaga":
         admin_panel(msg)
         return
     
-    # Template ma'lumotlarini olish
-    year = 2024
-    genre = "Noma'lum"
-    country = "Noma'lum"
-    description = "Tavsif yo'q"
+    # Standart qiymatlar - agar /skip bo'lsa bular bo'sh qoladi
+    year = None
+    genre = None
+    country = None
+    description = None
     
     if msg.text != "/skip":
         # Template dan ma'lumot olish
         lines = msg.text.strip().split('\n')
         for line in lines:
-            if 'Yil:' in line or 'yil:' in line:
-                try:
-                    year = int(line.split(':')[1].strip())
-                except:
-                    year = 2024
-            elif 'Janr:' in line or 'janr:' in line:
-                genre = line.split(':')[1].strip()
-            elif 'Mamlakat:' in line or 'mamlakat:' in line:
-                country = line.split(':')[1].strip()
-            elif 'Tavsif:' in line or 'tavsif:' in line:
-                description = line.split(':')[1].strip()
+            if ':' in line:
+                key, val = line.split(':', 1)
+                key = key.lower()
+                val = val.strip()
+                if 'yil' in key:
+                    try: year = int(val)
+                    except: year = 2024
+                elif 'janr' in key: genre = val
+                elif 'mamlakat' in key: country = val
+                elif 'tavsif' in key: description = val
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("🔙 Orqaga")
     
-    bot.send_message(msg.chat.id, f"📹 Endi video faylni yuboring:", reply_markup=markup)
+    bot.send_message(msg.chat.id, f"📹 Endi video faylni yuboring:", reply_markup=markup)   
     bot.register_next_step_handler(msg, lambda m: save_movie(m, code, title, description, year, genre, country))
 
 def save_movie(msg, code, title, description, year=2024, genre="Noma'lum", country="Noma'lum"):
@@ -992,7 +990,6 @@ def movies_menu(msg):
     bot.register_next_step_handler(msg, get_movie)
 
 def get_movie(msg):
-    # Orqaga tugmasini command sifatida qabul qilish
     if msg.text == "🔙 Orqaga":
         start(msg)
         return
@@ -1006,12 +1003,10 @@ def get_movie(msg):
     
     if not movie:
         conn.close()
-        bot.send_message(msg.chat.id, f"❌ `{code}` kodli film topilmadi!\n\n💡 Kodning to'g'riligini tekshiring.", parse_mode="Markdown")
+        bot.send_message(msg.chat.id, f"❌ `{code}` kodli film topilmadi!", parse_mode="Markdown")
         return
     
-    # movie: 0:id, 1:code, 2:title, 3:type, 4:description, 5:file_id, 6:year, 7:country, 8:genre, 9:added_by, 10:added_date, 11:views
-    
-    # Statistika
+    # Statistika yangilash
     user_id = msg.from_user.id
     c.execute('INSERT INTO statistics VALUES (NULL, ?, ?, ?)',
               (user_id, code, datetime.now().strftime("%Y-%m-%d %H:%M")))
@@ -1019,26 +1014,31 @@ def get_movie(msg):
     conn.commit()
     conn.close()
     
-    # Film ma'lumotlari
-    movie_info = (
-        f"🎬 *{movie[2]}*\n\n"
-        f"� {movie[4]}\n"
-        f"📅 Yil: {movie[6]}\n"
-        f"🌍 Mamlakat: {movie[7]}\n"
-        f"🎭 Janr: {movie[8]}\n"
-        f"👁 Ko'rishlar: {movie[11] + 1}\n\n"
-        f"⏳ Video yuborilmoqda..."
-    )
+    # Matnni shakllantirish (Faqat ma'lumot bor qatorlar qo'shiladi)
+    # movie: 2:title, 4:description, 5:file_id, 6:year, 7:country, 8:genre, 11:views
+    caption = f"🎬 *{movie[2]}*\n"
     
-    bot.send_message(msg.chat.id, movie_info, parse_mode="Markdown")
+    if movie[4] and movie[4].strip() not in ["None", "Tavsif yo'q", ""]:
+        caption += f"\n📝 {movie[4]}\n"
     
-    # Videoni yuborish
-    try:
-        bot.send_video(msg.chat.id, movie[5], caption=f"🎬 {movie[2]}")
-        bot.send_message(msg.chat.id, "✅ Film yuborildi! Yaxshi tomosha! 🍿")
-    except Exception as e:
-        bot.send_message(msg.chat.id, f"❌ Video yuborishda xatolik: {e}")
+    if movie[6] and str(movie[6]) != "0":
+        caption += f"\n📅 Yil: {movie[6]}"
+    
+    if movie[7] and movie[7] not in ["Noma'lum", ""]:
+        caption += f"\n🌍 Mamlakat: {movie[7]}"
+        
+    if movie[8] and movie[8] not in ["Noma'lum", ""]:
+        caption += f"\n🎭 Janr: {movie[8]}"
+        
+    caption += f"\n\n👁 Ko'rishlar: {movie[11] + 1}"
+    caption += f"\n🆔 Kod: `{movie[1]}`"
 
+    # Videoni ma'lumotlar bilan birga yuborish
+    try:
+        bot.send_video(msg.chat.id, movie[5], caption=caption, parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(msg.chat.id, f"❌ Xatolik: {e}")
+        
 # ============= QIDIRUV =============
 @bot.message_handler(func=lambda m: m.text == "🔍 Qidiruv")
 @check_sub_decorator
